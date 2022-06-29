@@ -1,0 +1,67 @@
+#Пример запроса и получения результатов заголовков:
+
+   def add_new_pet(self, auth_key: json, name: str, animal_type: str, age: str, pet_photo: str) -> json:
+        """Добавляет питомца с фото и возвращает статус запроса и результат в формате JSON"""
+        data = MultipartEncoder(
+            fields={
+                'name': name,
+                'animal_type': animal_type,
+                'age': age,
+                'pet_photo': (pet_photo, open(pet_photo, 'rb'), 'image/jpeg')
+            })
+        headers = {'auth_key': auth_key['key'], 'Content-Type': data.content_type}
+        res = requests.post(self.base_url + 'api/pets', headers=headers, data=data)
+        # добавляем заголовки:
+        content = res.headers
+        optional = res.request.headers
+        status = res.status_code
+        result = ""
+        try:
+            result = res.json()
+        except json.decoder.JSONDecodeError:
+            result = res.text
+        return status, result, content, optional
+        
+        
+   #Код для теста:
+   
+           def add_new_pet(self, auth_key: json, name: str, animal_type: str, age: str, pet_photo: str) -> json:
+        """Добавляет питомца с фото и возвращает статус запроса и результат в формате JSON"""
+        data = MultipartEncoder(
+            fields={
+                'name': name,
+                'animal_type': animal_type,
+                'age': age,
+                'pet_photo': (pet_photo, open(pet_photo, 'rb'), 'image/jpeg')
+            })
+        headers = {'auth_key': auth_key['key'], 'Content-Type': data.content_type}
+        res = requests.post(self.base_url + 'api/pets', headers=headers, data=data)
+        # добавляем заголовки:
+        content = res.headers
+        optional = res.request.headers
+        status = res.status_code
+        result = ""
+        try:
+            result = res.json()
+        except json.decoder.JSONDecodeError:
+            result = res.text
+        return status, result, content, optional
+        
+        
+  #Фитчи:
+#Для тестирования времени выполнения теста по отдельному запросу, добавим в функцию следующий код из библиотеки time:
+
+start = time.monotonic_ns() # засекаем таймер начала выполнения теста...
+<<< тело функции >>>
+finish = time.monotonic_ns() # засекаем таймер после выполнения теста...
+ time_test = (finish - start)//1000000
+ print(f"Время выполнения теста: {time_test} млсек.")
+assert time_test < 1000
+# Время выполнения теста: 234 млсек.
+
+
+
+Можем также проверять доп. параметры (см. код по их добавлению выше), например для теста получения ключа:
+assert optional.get('email') == valid_email / password
+и для теста создания питомца:
+assert optional.get('auth_key') == auth_key.get('key') (отредактировано) 
