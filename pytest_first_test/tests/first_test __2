@@ -1,3 +1,7 @@
+ФИТЧИ от Владимира Антонова
+
+
+
 #Пример запроса и получения результатов заголовков:
 
    def add_new_pet(self, auth_key: json, name: str, animal_type: str, age: str, pet_photo: str) -> json:
@@ -104,4 +108,25 @@ def time_delta():
     
     Для того чтобы фикстура вызывалась автоматически, можно указать в её параметрах autouse=True
 yield - спец. слово в pytest, которое позволяет посреди фикстуры вызвать выполнение тестовой функции и продолжить после того, как тестовая функция закончит делать свои операции
+
+
+
+В последний код страницы "Области видимости фикстур" модуля 21 можно добавить фикстуру:
+@pytest.fixture(autouse=True)
+def time_delta():
+    start_time = time.time_ns()
+    yield
+    end_time = time.time_ns()
+    print(f"\nТест шёл: {(end_time - start_time)//1000000}мс")
+Тогда по каждому тесту будет считаться время выполнения
+
+
+
+При куче тестов, когда нужно выводить их на печать в другой файл, хорошим тоном будет печатать заголовок тест-функции. Чтобы руками его постоянно не изменять, можно добавить скрипт:
+import inspect  # используем метод для возвращения имени функции
+конструкция: inspect.currentframe().f_code.co_name => вызывает имя функции
+Общий код вывода в итоге будет наподобие:
+with open("out_json.json", 'w', encoding='utf8') as myfile:
+    myfile.write(f'\n{inspect.currentframe().f_code.co_name}:\n')
+    json.dump(result, myfile, ensure_ascii=False, indent=4)
 
