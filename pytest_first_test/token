@@ -1,0 +1,90 @@
+#суть вопроса про токен... Как его передать, чтобы потом получить в ответе (для модуля 22)...
+Должен быть запрос типо в api файле и он у нас в модуле класса... Поэтому выглядит так:
+import requests
+import json
+
+class PetFriends:
+    def __init__(self):
+        self.base_url = "https://petfriends.skillfactory.ru/"
+
+    def get_api_key(self, email: str, password: str) -> json:
+        """Получаем user's key в формате json / auth_key"""
+
+        headers = {
+            'email': email,
+            'password': password,
+        }
+        res = requests.get(self.base_url + 'api/key', headers=headers)
+        status = res.status_code
+        result = ""
+        try:
+            result = res.json()
+        except json.decoder.JSONDecodeError:
+            result = res.text
+        return status, result
+2. Далее нужно (можно или желательно, но лучше) создать файл (.py) (в папке, где тесты) с конкретно таким названием: conftest.py. Это чудо-хранилище ваших крутых фикстур и декораторов, откуда PyTest по умолчанию импортирует фикстуры в тесты (декораторы импортируются, как и функции через from conftest import 'имя декоратора')...
+В этом файле conftest.py нужно создать фикстуру (о которой идёт речь в учебке... с загадочным блин атрибутом 'pytest.key') с нужными импортами... Вот она:
+from app.settings import valid_email, valid_password
+from app.api import PetFriends  # <- скобки не нужны, это просто имя
+import pytest
+
+pf = PetFriends()  # <- скобки нужны! Это не имя, а класс, в скобках его двигатель, без которого не будет работать код, что использует его... (pf.get_api_key - например)
+"""бывает мы сделали импорт PetFriends, и в переменную pf также заносим PetFriends :)) А потом ничего не работает и скобка после пароля подсвечивается белым -> ...valid_password) <- вот эта... Просто забыли поставить скобки после PetFriends => PetFriends() !!!"""
+
+# Фикстура для получения ключа auth_key в тестах REST API c параметризацией.
+# Для активации нужно атрибут pytest.key указать вместо ключа auth_key в тест-функциях...
+@pytest.fixture(autouse=True)  # autouse означает, что использование фикстуры будет вызываться автоматически без явного объявления перед тест-функцией.
+def fix_api_key():
+    """Фикстура для получения ключа в параметризированных тестах"""
+    # Отправляем запрос и сохраняем полученный ответ с кодом статуса в status, а текст ответа в pytest.key
+    status, pytest.key = pf.get_api_key(valid_email, valid_password)  # Важно указать здесь именно 'волшебный' атрибут pytest.key, о котором позже...
+    # Сверяем полученные данные с нашими ожиданиями
+    assert status == 200
+    assert 'key' in pytest.key
+    yield
+3. После того, как мы запечатлили фикстуру в файле conftest.py, переходим в свой файл для тестов также в папке tests и пробуем получить наш ёлки золотой ключик. Импортируем кучу всего и пишем код:
+from app.api import PetFriends
+import pytest
+import json
+pf = PetFriends()
+
+def test_get_api_key():
+    """ Проверяем, что запрос ключа возвращает статус 200 и содержится слово key"""
+    result = pytest.key  # pytest.key - ключ из фикстуры / указать вместо ключа auth_key
+    with open("out_json.json", 'w', encoding='utf8') as my_file:  # В файле out_json появится полученный ответ... )) См. файл в папке, откуда запускается тест.
+        json.dump(result, my_file, ensure_ascii=False, indent=4)
+    # Сверяем полученные данные с нашими ожиданиями
+    assert 'key' in result
+Аналогично делаем последующие тесты, например получение питомцев:
+# ПОЗИТИВНЫЕ ТЕСТЫ
+@pytest.mark.parametrize("filter", ['', 'my_pets'], ids=['empty string', 'only my pets'])
+def test_get_all_pets_with_valid_key(filter):
+    status, result, _, _ = pf.get_list_of_pets(pytest.key, filter)  """ Обратите внимание на кодировку: status, result, _, _ => нижнее подчёркивание используется для существующих в запросе API, но не вызываемых в данном случае, параметров! У меня это параметры заголовков: content, optional. См. пример запроса API вместе с ними ниже в следующем блоке..."""
+"""Если кому нужно также вывести в файл ответ от сервера, тогда нужно указать в строке выше: status, result, content, optional = pf.get_list_of_pets(pytest.key, filter), а в коде добавить скрипт with open... для сохранения в файл"""
+    with open("out_json.json", 'a', encoding='utf8') as my_file:
+        my_file.write(str(f'\n{status}\n{content}\n{optional}\n'))
+        json.dump(result, my_file, ensure_ascii=False, indent=4)
+    # Проверяем статус ответа
+    assert status == 200
+    assert len(result['pets']) > 0
+Как и говорил выше, вот пример запроса API (файл api) для получения питомцев с параметрами заголовков: content, optional:
+    def get_list_of_pets(self, auth_key: json, filter: str = "") -> json:
+        """Получение списка питомцев"""
+        headers = {'auth_key': auth_key['key']}
+        filter = {'filter': filter}
+        res = requests.get(self.base_url + 'api/pets', headers=headers, params=filter)
+        content = res.headers
+        optional = res.request.headers
+        status = res.status_code
+        try:
+            result = res.json()
+        except json.decoder.JSONDecodeError:
+            result = res.text
+        return status, result, content, optional
+И как говорил выше..., что это за чудо такое pytest.key?
+Не смог найти описание этого атрибута, но...
+Это не переменная, но атрибут. Назначается он в фикстуре fix_api_key в качестве атрибута получения токена из API запроса: get_api_key. Если бы эта была переменная, то любое слово, годное в качестве переменной легко смогло бы заменить его при использовании этой переменной в тест-функциях для получения значения токена... Но! Нет, токен вы не получите, если будете использовать любые, отличные от атрибута pytest.key значения!
+Секрет кроется в смысле фикстуры и импорта библиотеки Pytest. Получается, что атрибут key (из pytest.key) в нашей фикстуре fix_api_key получает значение ключа, а приставка pytest транслирует это значение через фикстуру в тест-функцию, где мы указываем атрибут pytest.key вместо auth_key, как это было в тестах без параметризации. Получается, что при параметризации, используя фикстуру для получения ключа, мы должны применять именно атрибут pytest.key. Если кто ещё что нарыл... делитесь )) (отредактировано) 
+
+
+
